@@ -1,13 +1,13 @@
 /**
  *
  * @category   Streamwide
- * @copyright  Copyright (c) 2021 StreamWIDE SA
+ * @copyright  Copyright (c) 2024 StreamWIDE SA
  * @author     Pierre Bodilis <pbodilis@streamwide.com>
- * @version    2.6
+ * @version    2.7
  *
  * MIT License
  *
- * Copyright (c) 2022 STREAMWIDE
+ * Copyright (c) 2024 STREAMWIDE
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -15,10 +15,10 @@
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -29,12 +29,14 @@
  *
  */
 
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
 #include <sw_codec_evs_utils.h>
 
+#define WITH_SWLOG 1
 #ifdef WITH_SWLOG
 #include <sw_log.h>
 #else
@@ -46,8 +48,7 @@
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #endif
 
-
-//#define EVS_FX 1
+// #define EVS_FX 1
 #ifdef EVS_FX
 #define EVS(a) a##_fx
 #include <cnst_fx.h> /* for MAX_BITS_PER_FRAME, etc */
@@ -70,7 +71,29 @@
 
 /* For codec_mode, see lib_enc/io_enc.c:io_ini_enc */
 // clang-format off
-struct sw_codec_evs_mode sw_codec_amrwb_modes[] = {
+
+/* For convenience, let's have the amrnb modes here too. */
+const struct sw_codec_evs_mode sw_codec_amrnb_modes[] = {
+    { 0,          4750,        SW_BITS_TO_BYTES(4750 / 50),        4750 / 50, 0},
+    { 1,          5150,        SW_BITS_TO_BYTES(5150 / 50),        5150 / 50, 0},
+    { 2,          5900,        SW_BITS_TO_BYTES(5900 / 50),        5900 / 50, 0},
+    { 3,          6700,        SW_BITS_TO_BYTES(6700 / 50),        6700 / 50, 0},
+    { 4,          7400,        SW_BITS_TO_BYTES(7400 / 50),        7400 / 50, 0},
+    { 5,          7950,        SW_BITS_TO_BYTES(7950 / 50),        7950 / 50, 0},
+    { 6,         10200,       SW_BITS_TO_BYTES(10200 / 50),       10200 / 50, 0},
+    { 7,         12200,       SW_BITS_TO_BYTES(12200 / 50),       12200 / 50, 0},
+    { 8,            -1,                                 -1,               -1, 0},
+    { 9,            -1,                                 -1,               -1, 0},
+    {10,            -1,                                 -1,               -1, 0},
+    {11,            -1,                                 -1,               -1, 0},
+    {12,            -1,                                 -1,               -1, 0},
+    {13,            -1,                                 -1,               -1, 0},
+    {14,            -1,                                 -1,               -1, 0},
+    {15,             0,                                  0,                0, 0},
+};
+
+
+const struct sw_codec_evs_mode sw_codec_amrwb_modes[] = {
     {AMRWB_IO_6600,    ACELP_6k60,  SW_BITS_TO_BYTES(ACELP_6k60 / 50),  ACELP_6k60 / 50, MODE1},
     {AMRWB_IO_8850,    ACELP_8k85,  SW_BITS_TO_BYTES(ACELP_8k85 / 50),  ACELP_8k85 / 50, MODE1},
     {AMRWB_IO_1265,   ACELP_12k65, SW_BITS_TO_BYTES(ACELP_12k65 / 50), ACELP_12k65 / 50, MODE1},
@@ -89,7 +112,7 @@ struct sw_codec_evs_mode sw_codec_amrwb_modes[] = {
     {      NO_DATA, FRAME_NO_DATA,                      FRAME_NO_DATA,    FRAME_NO_DATA, MODE1},
 };
 
-struct sw_codec_evs_mode sw_codec_evs_modes[] = {
+const struct sw_codec_evs_mode sw_codec_evs_modes[] = {
     {  PRIMARY_2800, PPP_NELP_2k80, SW_BITS_TO_BYTES(PPP_NELP_2k80 / 50), PPP_NELP_2k80 / 50, MODE1},
     {  PRIMARY_7200,    ACELP_7k20,    SW_BITS_TO_BYTES(ACELP_7k20 / 50),    ACELP_7k20 / 50, MODE1},
     {  PRIMARY_8000,    ACELP_8k00,    SW_BITS_TO_BYTES(ACELP_8k00 / 50),    ACELP_8k00 / 50, MODE1},
@@ -110,8 +133,8 @@ struct sw_codec_evs_mode sw_codec_evs_modes[] = {
 
 // clang-format on
 
-struct sw_codec_evs_mode* sw_codec_evs_get_mode_from_toc(const struct sw_codec_evs_toc* toc) {
-    struct sw_codec_evs_mode* evs_mode = NULL;
+const struct sw_codec_evs_mode* sw_codec_evs_get_mode_from_toc(const struct sw_codec_evs_toc* toc) {
+    const struct sw_codec_evs_mode* evs_mode = NULL;
     if (toc->is_amrwb) {
         if (sw_codec_amrwb_modes[toc->frame_type].mode > -1) {
             evs_mode = &sw_codec_amrwb_modes[toc->frame_type];
@@ -154,6 +177,21 @@ int sw_codec_evs_find_mode_by_framesize_in_bits(const struct sw_codec_evs_mode m
     return -1;
 }
 
+const struct sw_codec_evs_mode* sw_codec_evs_byte_to_mode(bool is_evs, const struct sw_codec_evs_mode* modes, size_t modes_len,
+                                                          uint8_t toc_entry_byte) {
+    const struct sw_codec_evs_mode* mode = NULL;
+    if (is_evs) {
+        struct sw_codec_evs_toc toc_entry = {0};
+        memcpy(&toc_entry, &toc_entry_byte, sizeof(toc_entry));
+        mode = sw_codec_evs_get_mode(modes, modes_len, toc_entry.frame_type);
+    } else {
+        struct sw_codec_amr_toc toc_entry = {0};
+        memcpy(&toc_entry, &toc_entry_byte, sizeof(toc_entry));
+        mode = sw_codec_evs_get_mode(modes, modes_len, toc_entry.FT);
+    }
+    return mode;
+}
+
 const struct sw_codec_evs_mode* sw_codec_evs_get_mode(const struct sw_codec_evs_mode* modes, size_t modes_len, int mode) {
     if (mode < 0 || (size_t)mode >= modes_len) {
         return NULL;
@@ -184,8 +222,8 @@ struct sw_codec_evs_encoder {
     struct sw_codec_evs_cmr cmr;
     bool                    cmr_set_from_codec_mode_request;
 
-    struct sw_codec_evs_mode* modes;     /* mode set in FMTP */
-    size_t                    modes_len; /* encoder_modes length */
+    const struct sw_codec_evs_mode* modes;     /* mode set in FMTP */
+    size_t                          modes_len; /* encoder_modes length */
 
     bool is_amrwb_rfc4867;
 };
@@ -235,7 +273,7 @@ struct sw_codec_evs_encoder* sw_codec_evs_encoder_create(const struct sw_codec_e
     encoder->st.EVS(var_SID_rate_flag) = 1; /* Automatic interval */
     encoder->st.EVS(Opt_AMR_WB)        = params->is_amrwb_rfc4867;
     /* Value range: -2..7, see res/res_format_attr_evs.c */
-    encoder->st.Opt_RF_ON = 0;
+    encoder->st.Opt_RF_ON              = 0;
 
     encoder->st.rf_fec_offset    = 0;
     encoder->st.rf_fec_indicator = 1;
@@ -325,7 +363,7 @@ void sw_codec_evs_encoder_configure(struct sw_codec_evs_encoder* encoder, const 
         }
     }
     LOGD("Configuring Encoder: %s - max_bwidth: %d - total brate: %ld", encoder->st.EVS(Opt_AMR_WB) ? "AMRWB" : "EVS",
-         encoder->st.EVS(max_bwidth), encoder->st.EVS(total_brate));
+         encoder->st.EVS(max_bwidth), (long)encoder->st.EVS(total_brate));
 }
 
 unsigned sw_codec_evs_encoder_get_sample_rate(const sw_codec_evs_encoder_t* encoder) {
@@ -359,7 +397,7 @@ uint8_t sw_codec_evs_encoder_get_mode(const sw_codec_evs_encoder_t* encoder) {
     return sw_codec_evs_find_mode_by_framesize_in_bits(encoder->modes, encoder->modes_len, encoder->st.EVS(nb_bits_tot));
 }
 
-ssize_t sw_codec_evs_encoder_encode(sw_codec_evs_encoder_t* encoder, uint16_t* pcm, size_t pcm_len) {
+ssize_t sw_codec_evs_encoder_encode(sw_codec_evs_encoder_t* encoder, const uint16_t* pcm, size_t pcm_len) {
     if (encoder->st.EVS(Opt_AMR_WB)) {
         EVS(amr_wb_enc)(&encoder->st, (Word16*)pcm, (Word16)pcm_len);
     } else {
@@ -404,9 +442,9 @@ struct sw_codec_evs_decoder {
     EVS(Decoder_State) st;
 #ifdef EVS_FX
     UWord16 bit_stream[MAX_BITS_PER_FRAME + 16];
+#else
+    float output[48000 / 50]; // max per frame
 #endif
-
-    float  output[48000 / 50];       // max per frame
     Word16 decoded_data[48000 / 50]; // max per frame
     size_t decoded_len;
 };
@@ -463,16 +501,16 @@ static bool sw_codec_evs_decoder_check(EVS(Decoder_State) * st, uint8_t* data, s
     }
 
     if (st->amrwb_rfc4867_flag) {
-        struct sw_codec_amr_toc* toc = (struct sw_codec_amr_toc*)data;
-        is_amrwb                     = true;
-        core_mode                    = toc->FT;
-        qbit                         = toc->Q;
+        const struct sw_codec_amr_toc* toc = (struct sw_codec_amr_toc*)data;
+        is_amrwb                           = true;
+        core_mode                          = toc->FT;
+        qbit                               = toc->Q;
         offset += sizeof(struct sw_codec_amr_toc);
     } else {
-        struct sw_codec_evs_toc* toc = (struct sw_codec_evs_toc*)data;
-        is_amrwb                     = toc->is_amrwb;
-        qbit                         = !toc->is_amrwb || toc->quality;
-        core_mode                    = toc->frame_type;
+        const struct sw_codec_evs_toc* toc = (struct sw_codec_evs_toc*)data;
+        is_amrwb                           = toc->is_amrwb;
+        qbit                               = !toc->is_amrwb || toc->quality;
+        core_mode                          = toc->frame_type;
         offset += sizeof(struct sw_codec_evs_toc);
 
         // the read_indices_mime checks that the header is correctly formed:
@@ -497,7 +535,7 @@ static bool sw_codec_evs_decoder_check(EVS(Decoder_State) * st, uint8_t* data, s
     size_t frame_len = SW_BITS_TO_BYTES(total_brate / 50);
 
     if (len < frame_len + offset) {
-        LOGD("Invalid packet %zu < %zu + %zu", len, frame_len, offset)
+        LOGD("Invalid packet %zu < %zu + %zu", len, frame_len, offset);
         return false;
     }
     EVS(read_indices_from_djb)(st, data + offset, total_brate / 50, is_amrwb, core_mode, qbit, 0, 0);
@@ -506,8 +544,6 @@ static bool sw_codec_evs_decoder_check(EVS(Decoder_State) * st, uint8_t* data, s
 
 ssize_t sw_codec_evs_decoder_decode(sw_codec_evs_decoder_t* decoder, uint8_t* data, size_t len) {
     decoder->decoded_len = sw_codec_evs_decoder_get_samples_per_frame(decoder);
-
-    memset(decoder->output, 0, sizeof(decoder->output));
 
     if (data) {
         if (!sw_codec_evs_decoder_check(&decoder->st, data, len)) {
@@ -522,6 +558,8 @@ ssize_t sw_codec_evs_decoder_decode(sw_codec_evs_decoder_t* decoder, uint8_t* da
         EVS(evs_dec)(&decoder->st, (Word16*)decoder->decoded_data, data ? FRAMEMODE_NORMAL : FRAMEMODE_MISSING);
     }
 #else
+    memset(decoder->output, 0, sizeof(decoder->output));
+
     if (decoder->st.EVS(Opt_AMR_WB)) {
         EVS(amr_wb_dec)(&decoder->st, decoder->output);
     } else {

@@ -1,13 +1,15 @@
 /**
+ * StreamWIDE SmartMS VoIP Client
+ *
  *
  * @category   Streamwide
- * @copyright  Copyright (c) 2021 StreamWIDE SA
+ * @copyright  Copyright (c) 2024 StreamWIDE SA
  * @author     Pierre Bodilis <pbodilis@streamwide.com>
- * @version    2.6
+ * @version    2.7
  *
  * MIT License
  *
- * Copyright (c) 2022 STREAMWIDE
+ * Copyright (c) 2024 STREAMWIDE
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -15,10 +17,10 @@
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -45,40 +47,41 @@ extern "C" {
 
 /* See RFC 4867 section 5.3 */
 struct sw_codec_amr_toc {
-    uint8_t padding : 2; /* padding */
-    uint8_t Q : 1;       /* Frame quality indicator */
-    uint8_t FT : 4;      /* Frame type index */
-    uint8_t F : 1;       /* If set to 1, indicates that this frame is followed by
-                            another speech frame in this payload; if set to 0, indicates
-                            that this frame is the last frame in this payload */
+    uint8_t padding: 2; /* padding */
+    uint8_t Q      : 1; /* Frame quality indicator */
+    uint8_t FT     : 4; /* Frame type index */
+    uint8_t F      : 1; /* If set to 1, indicates that this frame is followed by
+                           another speech frame in this payload; if set to 0, indicates
+                           that this frame is the last frame in this payload */
 } __attribute__((packed, aligned(1)));
 
 /* 3GPP TS 26.445 A.2.2.1.1 */
 struct sw_codec_evs_cmr {
-    uint8_t frame_type : 4;  // D the requested frametype
-    uint8_t type : 3;        // T type of request
-    uint8_t header_type : 1; // H
+    uint8_t frame_type : 4; // D the requested frametype
+    uint8_t type       : 3; // T type of request
+    uint8_t header_type: 1; // H
 } __attribute__((packed));
 
 /* 3GPP TS 26.445 A.2.2.1.2 */
 struct sw_codec_evs_toc {
-    uint8_t frame_type : 4;  /* EVS frametype (~FT in amr toc) */
-    uint8_t quality : 1;     /* AMRWB Q bit */
-    uint8_t is_amrwb : 1;    /* EVS mode bit */
-    uint8_t followed : 1;    /* F */
-    uint8_t header_type : 1; /* T */
+    uint8_t frame_type : 4; /* EVS frametype (~FT in amr toc) */
+    uint8_t quality    : 1; /* AMRWB Q bit */
+    uint8_t is_amrwb   : 1; /* EVS mode bit */
+    uint8_t followed   : 1; /* F */
+    uint8_t header_type: 1; /* T */
 } __attribute__((packed));
 
 struct sw_codec_evs_mode {
     int     mode;
     ssize_t rate;
-    ssize_t bytes;
-    ssize_t bits;
+    ssize_t bytes;      // frame only, without the TOC
+    ssize_t bits;       // frame only, without the TOC
     int     codec_mode; // MODE1 or MODE2
 };
 
-extern struct sw_codec_evs_mode sw_codec_amrwb_modes[];
-extern struct sw_codec_evs_mode sw_codec_evs_modes[];
+extern const struct sw_codec_evs_mode sw_codec_amrnb_modes[];
+extern const struct sw_codec_evs_mode sw_codec_amrwb_modes[];
+extern const struct sw_codec_evs_mode sw_codec_evs_modes[];
 
 enum {
     SW_AMR_TOC_CMR_OA_BLEN = 8, /**< Octet Align length in bits */
@@ -89,6 +92,7 @@ enum {
 
     SW_CODEC_AMRWB_FRAME_MAX_LEN = 60,
 
+    SW_CODEC_AMRNB_NUMBER_OF_MODES = 16,
     SW_CODEC_AMRWB_NUMBER_OF_MODES = 16,
     SW_CODEC_EVS_NUMBER_OF_MODES   = 16,
 
@@ -98,7 +102,7 @@ enum {
     SW_CODEC_EVS_FRAME_MAX_LEN = (2560 + 7) / 8,
 };
 
-struct sw_codec_evs_mode* sw_codec_evs_get_mode_from_toc(const struct sw_codec_evs_toc* toc);
+const struct sw_codec_evs_mode* sw_codec_evs_get_mode_from_toc(const struct sw_codec_evs_toc* toc);
 
 /**
  * find closest mode to the provided rate if it doesn't match exactly a rate explicitely supported by the provided modes
@@ -119,6 +123,9 @@ int sw_codec_evs_find_mode_by_rate(const struct sw_codec_evs_mode modes[], size_
  * @return int the mode value, -1 if nothing could be found
  */
 int sw_codec_evs_find_mode_by_framesize_in_bits(const struct sw_codec_evs_mode modes[], size_t modes_len, unsigned bits);
+
+const struct sw_codec_evs_mode* sw_codec_evs_byte_to_mode(bool is_evs, const struct sw_codec_evs_mode* modes, size_t modes_len,
+                                                          uint8_t toc_entry_byte);
 
 const struct sw_codec_evs_mode* sw_codec_evs_get_mode(const struct sw_codec_evs_mode* modes, size_t modes_len, int mode);
 
@@ -144,7 +151,7 @@ enum {
     SW_CODEC_EVS_ENCODE_ERROR_INVALID_MODE    = -1,
     SW_CODEC_EVS_ENCODE_ERROR_NOT_ENOUGH_DATA = -2,
 };
-ssize_t        sw_codec_evs_encoder_encode(sw_codec_evs_encoder_t* encoder, uint16_t* pcm, size_t pcm_len);
+ssize_t        sw_codec_evs_encoder_encode(sw_codec_evs_encoder_t* encoder, const uint16_t* pcm, size_t pcm_len);
 const uint8_t* sw_codec_evs_encoder_get_encoded_data(const sw_codec_evs_encoder_t* encoder);
 size_t         sw_codec_evs_encoder_get_encoded_len(const sw_codec_evs_encoder_t* encoder);
 
@@ -156,10 +163,11 @@ struct sw_codec_evs_decoder_params {
 };
 
 typedef struct sw_codec_evs_decoder sw_codec_evs_decoder_t;
-sw_codec_evs_decoder_t*             sw_codec_evs_decoder_create(const struct sw_codec_evs_decoder_params* params);
-void                                sw_codec_evs_decoder_destroy(sw_codec_evs_decoder_t* decoder);
-unsigned                            sw_codec_evs_decoder_get_sample_rate(const sw_codec_evs_decoder_t* decoder);
-size_t                              sw_codec_evs_decoder_get_samples_per_frame(const sw_codec_evs_decoder_t* decoder);
+
+sw_codec_evs_decoder_t* sw_codec_evs_decoder_create(const struct sw_codec_evs_decoder_params* params);
+void                    sw_codec_evs_decoder_destroy(sw_codec_evs_decoder_t* decoder);
+unsigned                sw_codec_evs_decoder_get_sample_rate(const sw_codec_evs_decoder_t* decoder);
+size_t                  sw_codec_evs_decoder_get_samples_per_frame(const sw_codec_evs_decoder_t* decoder);
 
 enum {
     SW_CODEC_EVS_DECODE_ERROR_INVALID_DATA = -1,
